@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate Medical Master Tool</title>
+    <style>
+        :root {
+            --primary: #0284c7;
+            --success: #10b981;
+            --error: #ef4444;
+            --study: #8b5cf6;
+            --pink: #db2777;
+            --amber: #d97706;
+            --orange: #f59e0b;
+            --indigo: #4f46e5;
+            --bg-color: #f0f9ff;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            margin: 0; padding: 0;
+            display: flex; flex-direction: column; align-items: center;
+            min-height: 100vh; background-color: var(--bg-color);
+        }
+
+        #canvas-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background: linear-gradient(to bottom, #e0f2fe, #f0f9ff); }
+
+        /* --- STICKY HEADER --- */
+        .sticky-header {
+            position: sticky; top: 0; width: 100%;
+            background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px);
+            border-bottom: 2px solid #bae6fd; padding: 10px 0; z-index: 1000;
+            display: flex; flex-direction: column; align-items: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+
+        .score-box { font-size: 1.2rem; font-weight: 800; color: var(--primary); margin-bottom: 5px; }
+        .nav-btns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; padding: 0 10px; }
+
+        button {
+            padding: 8px 14px; border-radius: 6px; border: none;
+            font-weight: 600; cursor: pointer; transition: 0.2s; font-size: 13px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .btn-blue { background: var(--primary); color: white; }
+        .btn-green { background: var(--success); color: white; } /* Reveal Button */
+        .btn-save { background: #065f46; color: white; }
+        .btn-load { background: #4338ca; color: white; }
+        .btn-purple { background: var(--study); color: white; } 
+        .btn-teal { background: var(--teal); color: white; } 
+        .btn-pink { background: var(--pink); color: white; }
+        .btn-amber { background: var(--amber); color: white; }
+        .btn-orange { background: #f59e0b; color: white; }
+        .btn-outline { background: white; color: #64748b; border: 1px solid #cbd5e1; }
+
+        /* --- CONTENT --- */
+        .container { width: 92%; max-width: 700px; margin: 20px 0; z-index: 1; }
+        #inputSection textarea {
+            width: 100%; height: 100px; padding: 15px; border-radius: 10px;
+            border: 2px solid #cbd5e1; box-sizing: border-box; font-size: 14px;
+        }
+
+        .q-card {
+            background: rgba(255, 255, 255, 0.95); border-radius: 15px; padding: 25px;
+            margin-bottom: 30px; box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            border-left: 6px solid var(--primary); position: relative;
+        }
+
+        .en { display: block; font-weight: 700; color: #1e293b; line-height: 1.2; padding-right: 120px; }
+        .km { display: block; color: #475569; font-size: 1.05em; margin-top: 2px; line-height: 1.2; padding-right: 120px; }
+
+        /* VISIBILITY LOGIC */
+        .global-hide-km .km, .q-card.force-hide-km .km { display: none !important; }
+        .global-hide-en .en, .q-card.force-hide-en .en { display: none !important; }
+        .q-card.force-show-km .km { display: block !important; }
+        .q-card.force-show-en .en { display: block !important; }
+
+        /* STUDY MODE */
+        .mode-study .opt-row:not(.is-correct) { display: none !important; }
+        .mode-study .cb-input { display: none !important; }
+        .mode-study .opt-row { cursor: default !important; border-color: var(--success) !important; background: #f0fdf4 !important; }
+        .mode-study .opt-row::before { content: "✓ "; font-weight: bold; color: var(--success); }
+
+        .local-toggles { position: absolute; top: 15px; right: 15px; display: flex; gap: 4px; z-index: 5; }
+        .btn-small { background: #e2e8f0; color: #475569; width: 30px; height: 22px; padding: 0; font-size: 9px; border-radius: 4px; box-shadow: none; }
+        
+        .opt-row { display: flex; align-items: flex-start; padding: 10px; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 6px; background: white; cursor: pointer; }
+        input[type="checkbox"] { margin-top: 4px; margin-right: 12px; transform: scale(1.3); }
+
+        /* FEEDBACK COLORS */
+        .q-card.correct { border-left-color: var(--success); background: #f0fdf4; }
+        .q-card.wrong { border-left-color: var(--error); background: #fef2f2; }
+        .q-card.revealed { border-left-color: var(--amber); background: #fffbeb; }
+
+        .row-true { border: 2.5px solid var(--success) !important; background: #d1fae5 !important; }
+        .row-false { border: 2.5px solid var(--error) !important; background: #fee2e2 !important; }
+        
+        .btn-local-redo { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; width: 100%; margin-top: 10px; display: none; }
+        .status-msg { position: absolute; top: 45px; right: 15px; font-weight: 900; font-size: 18px; display: none; }
+    </style>
+</head>
+<body>
+
+<canvas id="canvas-bg"></canvas>
+
+<div class="sticky-header">
+    <div class="score-box" id="scoreDisplay">Score: 0 / 0</div>
+    <div class="nav-btns">
+        <button class="btn-blue" id="startBtn" onclick="processText()">1. Create Quiz</button>
+        <button class="btn-green" id="revealBtn" onclick="revealAll()" style="display:none">Show all Answers</button>
+        <button class="btn-load" onclick="document.getElementById('fileLoader').click()">Load File</button>
+        <button class="btn-save" id="saveBtn" onclick="downloadQuiz()" style="display:none">Save File</button>
+        <button class="btn-purple" id="studyBtn" onclick="toggleStudyMode()" style="display:none">Study Mode</button>
+        <button class="btn-teal" id="enGlobalBtn" onclick="toggleGlobalVisibility('en')" style="display:none">Khmer Only</button>
+        <button class="btn-gray" id="kmGlobalBtn" onclick="toggleGlobalVisibility('km')" style="display:none">Hide Khmer</button>
+        <button class="btn-orange" onclick="redoAll()" style="display:none" id="redoBtn">Redo All</button>
+        <button class="btn-outline" onclick="location.reload()">New Quiz</button>
+    </div>
+    <input type="file" id="fileLoader" style="display:none" accept=".json" onchange="loadQuizFile(event)">
+</div>
+
+<div class="container">
+    <div id="inputSection"><textarea id="userInput" placeholder="Paste text here..."></textarea></div>
+    <div id="quizSection"></div>
+</div>
+
+<script>
+    let questionsData = []; let score = 0; let isStudyMode = false;
+
+    function processText() {
+        const input = document.getElementById('userInput').value.trim(); if(!input) return;
+        const lines = input.split('\n'); questionsData = [];
+        let curQ = null;
+        const kmRegex = /[\u1780-\u17FF]/, optRegex = /^[A-Z][\.\)]\s/i;
+
+        lines.forEach(line => {
+            let t = line.trim(); if(!t) return;
+            if(!kmRegex.test(t)) {
+                if(optRegex.test(t)) {
+                    let isRight = t.includes('✓') || t.includes('✔');
+                    let o = { en: t.replace(/[✓✔]/g, '').trim(), km: '', isRight: isRight };
+                    curQ.options.push(o); if(isRight) curQ.rightCount++;
+                } else {
+                    let q = { en: t, km: '', options: [], rightCount: 0, status: 'pending' };
+                    questionsData.push(q); curQ = q;
+                }
+            } else {
+                let lastItem = (curQ && curQ.options.length > 0) ? curQ.options[curQ.options.length-1] : curQ;
+                if(lastItem) lastItem.km += (lastItem.km ? ' ' : '') + t;
+            }
+        });
+        render();
+    }
+
+    function render() {
+        const section = document.getElementById('quizSection');
+        let html = '';
+        questionsData.forEach((q, qIdx) => {
+            html += `
+            <div class="q-card" id="card-${qIdx}">
+                <div class="local-toggles">
+                    <button class="btn-small" onclick="toggleLocalVisibility(${qIdx}, 'en')">EN</button>
+                    <button class="btn-small" onclick="toggleLocalVisibility(${qIdx}, 'km')">KM</button>
+                </div>
+                <div class="status-msg" id="msg-${qIdx}"></div>
+                <div class="q-text"><span class="en">${q.en}</span><span class="km">${q.km}</span></div>
+                <div class="options-list">
+                    ${q.options.map((opt, oIdx) => `
+                        <label class="opt-row ${opt.isRight?'is-correct':''}" id="row-${qIdx}-${oIdx}">
+                            <input type="checkbox" class="cb-input cb-${qIdx}" onchange="handleAuto(${qIdx})" data-right="${opt.isRight}">
+                            <div><span class="en">${opt.en}</span><span class="km">${opt.km}</span></div>
+                        </label>
+                    `).join('')}
+                </div>
+                <button class="btn-local-redo" id="redo-single-${qIdx}" onclick="redoSingle(${qIdx})">Redo Question</button>
+            </div>`;
+        });
+        section.innerHTML = html;
+        document.getElementById('inputSection').style.display = 'none';
+        document.querySelectorAll('.nav-btns button').forEach(b => b.style.display = 'block');
+        updateScore();
+    }
+
+    // --- REVEAL ALL LOGIC ---
+    function revealAll() {
+        if(!confirm("Reveal all correct answers? (Points won't be added)")) return;
+        questionsData.forEach((q, qIdx) => {
+            if (q.status === 'pending') {
+                const card = document.getElementById(`card-${qIdx}`);
+                const inputs = document.querySelectorAll(`.cb-${qIdx}`);
+                const msg = document.getElementById(`msg-${qIdx}`);
+                
+                inputs.forEach((input, oIdx) => {
+                    const row = document.getElementById(`row-${qIdx}-${oIdx}`);
+                    if (input.getAttribute('data-right') === 'true') row.classList.add('row-true');
+                    input.disabled = true;
+                });
+
+                q.status = 'revealed';
+                card.classList.add('revealed');
+                msg.innerText = "REVEALED";
+                msg.style.display = 'block';
+                msg.style.color = "var(--amber)";
+                document.getElementById(`redo-single-${qIdx}`).style.display = 'block';
+            }
+        });
+    }
+
+    function handleAuto(idx) {
+        if (isStudyMode) return;
+        const q = questionsData[idx]; const inputs = Array.from(document.querySelectorAll(`.cb-${idx}`));
+        if(inputs.filter(i => i.checked).length === q.rightCount) {
+            let correct = true;
+            inputs.forEach((input, oIdx) => {
+                const row = document.getElementById(`row-${idx}-${oIdx}`);
+                const isRight = input.getAttribute('data-right') === 'true';
+                if(isRight) { row.classList.add('row-true'); if(!input.checked) correct = false; }
+                else if(input.checked) { row.classList.add('row-false'); correct = false; }
+                input.disabled = true;
+            });
+            q.status = correct ? 'correct' : 'wrong';
+            const card = document.getElementById(`card-${idx}`);
+            card.classList.add(correct ? 'correct' : 'wrong');
+            const msg = document.getElementById(`msg-${idx}`);
+            msg.style.display = 'block'; msg.innerText = correct ? "✓" : "✗";
+            document.getElementById(`redo-single-${idx}`).style.display = 'block';
+            updateScore();
+        }
+    }
+
+    function redoSingle(idx) {
+        if (questionsData[idx].status === 'correct') score--;
+        questionsData[idx].status = 'pending';
+        const card = document.getElementById(`card-${idx}`);
+        card.classList.remove('correct', 'wrong', 'revealed');
+        document.getElementById(`msg-${idx}`).style.display = 'none';
+        document.getElementById(`redo-single-${idx}`).style.display = 'none';
+        document.querySelectorAll(`.cb-${idx}`).forEach((input, oIdx) => {
+            input.checked = false; input.disabled = false;
+            document.getElementById(`row-${idx}-${oIdx}`).classList.remove('row-true', 'row-false');
+        });
+        updateScore();
+    }
+
+    function downloadQuiz() {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(questionsData));
+        const dlAnchor = document.createElement('a');
+        dlAnchor.setAttribute("href", dataStr);
+        dlAnchor.setAttribute("download", "quiz_save.json");
+        dlAnchor.click();
+    }
+
+    function loadQuizFile(event) {
+        const reader = new FileReader();
+        reader.onload = (e) => { questionsData = JSON.parse(e.target.result); render(); };
+        reader.readAsText(event.target.files[0]);
+    }
+
+    function toggleStudyMode() {
+        isStudyMode = !isStudyMode;
+        document.getElementById('quizSection').classList.toggle('mode-study');
+        document.getElementById('studyBtn').innerText = isStudyMode ? "Quiz Mode" : "Study Mode";
+        document.getElementById('scoreDisplay').style.visibility = isStudyMode ? 'hidden' : 'visible';
+    }
+
+    function toggleMode(cls) { document.getElementById('quizSection').classList.toggle(cls); }
+
+    function toggleGlobalVisibility(lang) {
+        const isHidden = document.getElementById('quizSection').classList.toggle(`global-hide-${lang}`);
+        questionsData.forEach((_, i) => document.getElementById(`card-${i}`).classList.remove(`force-show-${lang}`, `force-hide-${lang}`));
+        if(lang === 'km') document.getElementById('kmGlobalBtn').innerText = isHidden ? "Show Khmer" : "Hide Khmer";
+        if(lang === 'en') document.getElementById('enGlobalBtn').innerText = isHidden ? "Show English" : "Khmer Only";
+    }
+
+    function toggleLocalVisibility(qIdx, lang) {
+        const card = document.getElementById(`card-${qIdx}`);
+        const globalHidden = document.getElementById('quizSection').classList.contains(`global-hide-${lang}`);
+        if (globalHidden) { card.classList.remove(`force-hide-${lang}`); card.classList.toggle(`force-show-${lang}`); } 
+        else { card.classList.remove(`force-show-${lang}`); card.classList.toggle(`force-hide-${lang}`); }
+    }
+
+    function redoAll() { score = 0; questionsData.forEach(q => q.status = 'pending'); render(); if(isStudyMode) document.getElementById('quizSection').classList.add('mode-study'); }
+    function updateScore() { document.getElementById('scoreDisplay').innerText = `Score: ${score} / ${questionsData.length}`; }
+
+    // --- BG ---
+    const canvas = document.getElementById('canvas-bg'); const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+    function anim() { ctx.clearRect(0,0,canvas.width,canvas.height); requestAnimationFrame(anim); }
+    anim();
+</script>
+
+</body>
+</html>
